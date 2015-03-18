@@ -37,17 +37,30 @@ typedef struct
 
 typedef struct 
 {
-	//The directory is a mapping table to convert file name to inode
-	//int *inode_pointer; //The first inode should point to this structure (it accepts a pointer, idk if it should have a pointer)
+	int inode_index;
 	directory_entry table[MAXFILES];
 } root_dir;
 
 typedef struct 
 {
-	int *inode_pointer;
-	char file_name[MAXFILENAME];
-	char file_extensioin[MAXFILEEXTENSION];
+	char *inode_mode;
+	char file_name[MAXFILENAME+MAXFILEEXTENSION];
 } directory_entry;
+
+typedef struct
+{
+    int opened;
+    int wr_ptr;
+    int rd_ptr;
+} file_descriptor;
+
+typedef struct
+{
+   // char filename[MAXFILEEXTENSION+MAXFILENAME];
+    int inode_index;
+    int size;
+	file_descriptor fd;
+} disk_file;
 
 
 int mksfs(int fresh);

@@ -52,7 +52,33 @@ int mksfs(int fresh){
 
 
 int sfs_fopen(char *name){
+//opens a file and returns the index on the file descriptor table
 
+	int i;
+	int root_directory_size = sizeof(root.table)/sizeof(root.table[0]);
+	int fileID;
+
+	//Look through the root directory to find the fileID that coresponds to the name
+	for(i=0;i<root_directory_size;i++)
+	{
+		if(name == root.table[i].file_name){
+			fileID = i;
+		}
+	}
+	
+	//Check if the file is already open 
+	if(root.table[fileID ].fd.opened == 1)
+	{
+		printf("Error file '%s' already open!\n", name);
+		return -1;
+	}
+	else
+	{
+		root.table[fileID ].fd.opened = 1;
+		return 0;
+	}
+
+	return fileID;
 } 
 
 int sfs_fclose(int fileID){
