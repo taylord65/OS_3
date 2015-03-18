@@ -5,12 +5,21 @@
 super_block superblock;
 freeblocklist freebl;
 root_dir root; 
+inode_table inodetable;
 
 int mksfs(int fresh){
 
 	if (fresh) {
 		//Create the file system from scratch
-		init_fresh_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS); 
+		init_fresh_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS);
+
+		super_block superblock={
+			.magic=0xAABB0005,
+			.blocksize=BLOCK_SIZE,
+			.file_system_size=NUM_BLOCKS,
+			.inode_table_length=NUM_BLOCKS,
+			.root_directory=ROOTDIR_INODE_NUMBER
+		}; 
 
 		int i;
 
@@ -20,9 +29,10 @@ int mksfs(int fresh){
 		}
 
 		write_blocks(0, 1, (void *)&superblock); //The superblock is the first block on the disk
-		write_blocks(1, 20000, (void *)&root); //Root directory cannot grow larger than max file size, which is 20000 blocks.
+		write_blocks(1, 100, (void *)&inodetable);
+		write_blocks(100, 20000, (void *)&root); //Root directory cannot grow larger than max file size, which is 20000 blocks.
 
-		write_blocks(NUM_BLOCKS-51, 1, (void *)&freebl); 
+		write_blocks(NUM_BLOCKS-1, 1, (void *)&freebl); 
 
 
 
