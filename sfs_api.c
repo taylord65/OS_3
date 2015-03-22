@@ -4,17 +4,14 @@
 #include <string.h>
 
 super_block superblock;
-freeblocklist freebl;
-
 root_dir root; 
-
 inode_table inodetable;
 inode rootinode;
 
 int mksfs(int fresh){
 
 	if (fresh) {
-		//Create the file system from scratch
+	
 		init_fresh_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS);
 
 		super_block superblock={
@@ -28,7 +25,7 @@ int mksfs(int fresh){
 		memset(&root,0,sizeof(root));
 
 		inode rootinode={
-			.mode=0777, 
+			.mode=777, 
 			.link_cnt=1,
 			.uid=0,
 			.gid=0,
@@ -36,7 +33,7 @@ int mksfs(int fresh){
 			.pointers={26,0,0,0,0,0,0,0,0,0,0,0,0}
 		};
 
-		memcpy(&inodetable[superblock.root_directory], &rootinode, sizeof(rootinode));
+		inodetable.inodes[superblock.root_directory] = rootinode;
 
 		/*int i;
 
@@ -49,20 +46,22 @@ int mksfs(int fresh){
 		write_blocks(1, 25, (void *)&inodetable);
 		write_blocks(26, 5, (void *)&root); //Root directory cannot grow larger than max file size, which is 20000 blocks.
 
-		write_blocks(NUM_BLOCKS-1, 1, (void *)&freebl); 
+		printf("%d \n", inodetable.inodes[superblock.root_directory].mode);
 
-		return(0);
+	//	write_blocks(NUM_BLOCKS-1, 1, (void *)&freebl); 
 
 
 	} else {
 
-		//System is opened from the disk
 		init_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS); 
-		read_blocks(0, 1, (void*)&superblock);
+
+		read_blocks(0, 1, (void *)&superblock );
+
 		printf("%x \n", superblock.magic_number);
 
-		read_blocks(1, 25, (void*)&inodetable);
-		printf("Root inode Mode is : %c \n", rootinode.mode);
+		read_blocks(1, 25, (void *)&inodetable );
+
+		printf("Root inode Mode is : %d \n", inodetable.inodes[superblock.root_directory].mode);
 
 	}
 
