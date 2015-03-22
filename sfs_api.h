@@ -1,15 +1,15 @@
 #define MAXFILENAME 16
 #define MAXFILEEXTENSION 3
-#define NUM_BLOCKS 200000 //100MB disk size
+#define NUM_BLOCKS 496
 #define BLOCK_SIZE 512 
 #define NUM_INODE_POINTERS 13
 #define MAXFILES 10
-#define MAXFILESIZE
+#define MAXFILESIZE 10
 
 //On disk data structures of the file system
 
 typedef struct{
-	char mode;
+	char mode; 
 	int link_cnt;
 	int uid;
 	int gid;
@@ -37,15 +37,13 @@ typedef struct
 
 typedef struct 
 {
-	int inode_index;
-	directory_entry table[MAXFILES];
-} root_dir;
-
-typedef struct 
-{
-	char *inode_mode;
+	int inode_number;
 	char file_name[MAXFILENAME+MAXFILEEXTENSION];
 } directory_entry;
+
+
+root_dir directory_entry[MAXFILES];
+
 
 typedef struct
 {
@@ -54,13 +52,6 @@ typedef struct
     int rd_ptr;
 } file_descriptor;
 
-typedef struct
-{
-   // char filename[MAXFILEEXTENSION+MAXFILENAME];
-    int inode_index;
-    int size;
-	file_descriptor fd;
-} disk_file;
 
 
 int mksfs(int fresh);
