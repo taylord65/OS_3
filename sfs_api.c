@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "disk_emu.h"
 #include "sfs_api.h"
+#include <string.h>
 
 super_block superblock;
 freeblocklist freebl;
@@ -8,7 +9,7 @@ freeblocklist freebl;
 root_dir root; 
 
 inode_table inodetable;
-inode root_inode;
+inode rootinode;
 
 int mksfs(int fresh){
 
@@ -24,20 +25,18 @@ int mksfs(int fresh){
 			.root_directory=0 
 		}; 
 
-		memset(root,0,sizeof(root));
+		memset(&root,0,sizeof(root));
 
 		inode rootinode={
-			.mode=0777, //read write and execute permissions
+			.mode=0777, 
 			.link_cnt=1,
 			.uid=0,
 			.gid=0,
 			.size=0,
-			.pointers= [25,0,0,0,0,0,0,0,0,0,0,0,0]
+			.pointers={26,0,0,0,0,0,0,0,0,0,0,0,0}
 		};
 
-
-		inodetable[superblock.root_directory]= rootinode; //rootinode is the first one in the inode table
-
+		memcpy(&inodetable[superblock.root_directory], &rootinode, sizeof(rootinode));
 
 		/*int i;
 
@@ -48,7 +47,7 @@ int mksfs(int fresh){
 
 		write_blocks(0, 1, (void *)&superblock); //The superblock is the first block on the disk
 		write_blocks(1, 25, (void *)&inodetable);
-		write_blocks(25, 10, (void *)&root); //Root directory cannot grow larger than max file size, which is 20000 blocks.
+		write_blocks(26, 5, (void *)&root); //Root directory cannot grow larger than max file size, which is 20000 blocks.
 
 		write_blocks(NUM_BLOCKS-1, 1, (void *)&freebl); 
 
@@ -60,10 +59,10 @@ int mksfs(int fresh){
 		//System is opened from the disk
 		init_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS); 
 		read_blocks(0, 1, (void*)&superblock);
-		printf("%x", superblock.magic_number);
+		printf("%x \n", superblock.magic_number);
 
 		read_blocks(1, 25, (void*)&inodetable);
-		printf("")
+		printf("Root inode Mode is : %c \n", rootinode.mode);
 
 	}
 

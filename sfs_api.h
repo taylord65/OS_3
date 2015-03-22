@@ -9,12 +9,12 @@
 //On disk data structures of the file system
 
 typedef struct{
-	char mode; 
+	int mode; 
 	int link_cnt;
 	int uid;
 	int gid;
 	int size;
-	int *pointers[NUM_INODE_POINTERS];
+	int pointers[NUM_INODE_POINTERS];
 } inode;
 
 typedef struct{
@@ -41,9 +41,10 @@ typedef struct
 	char file_name[MAXFILENAME+MAXFILEEXTENSION];
 } directory_entry;
 
-
-root_dir directory_entry[MAXFILES];
-
+typedef struct 
+{
+	directory_entry table[MAXFILES];
+} root_dir;
 
 typedef struct
 {
