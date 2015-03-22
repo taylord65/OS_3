@@ -40,11 +40,6 @@ int mksfs(int fresh){
 		//System is opened from the disk
 		init_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS); 
 
-		read_blocks(0, 1, (void *)&superblock); 
-		read_blocks(1, 20000, (void *)&root);
-
-		read_blocks(NUM_BLOCKS-51, 1, (void *)&freebl);
-
 
 	}
 
@@ -55,11 +50,10 @@ int sfs_fopen(char *name){
 //opens a file and returns the index on the file descriptor table
 
 	int i;
-	int root_directory_size = sizeof(root.table)/sizeof(root.table[0]);
 	int fileID;
 
 	//Look through the root directory to find the fileID that coresponds to the name
-	for(i=0;i<root_directory_size;i++)
+	for(i=0;i < MAXFILES;i++)
 	{
 		if(name == root.table[i].file_name){
 			fileID = i;
@@ -74,6 +68,7 @@ int sfs_fopen(char *name){
 	}
 	else
 	{
+		//It will be opened now
 		root.table[fileID ].fd.opened = 1;
 		return 0;
 	}
