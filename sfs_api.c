@@ -1,18 +1,24 @@
 #include <stdio.h>
+#include <string.h>
 #include "disk_emu.h"
 #include "sfs_api.h"
-#include <string.h>
 
 super_block superblock;
-root_dir root; 
-inode_table inodetable;
-inode rootinode;
 
 int mksfs(int fresh){
 
+	int buffer[BLOCK_SIZE];
+	memset(buffer,0,BLOCK_SIZE);
+
+	int inodetable_buffer[25 * BLOCK_SIZE];
+	memset(inodetable_buffer,0, sizeof(inodetable_buffer));	
+
+	char directory_buffer[5 * BLOCK_SIZE];
+	memset(directory_buffer,0, sizeof(directory_buffer));
+
 	if (fresh) {
 	
-		init_fresh_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS);
+		init_fresh_disk("Dotsikas_Taylor_sfs", BLOCK_SIZE, NUM_BLOCKS);
 
 		super_block superblock={
 			.magic_number=0xAABB0005,
@@ -22,10 +28,11 @@ int mksfs(int fresh){
 			.root_directory=0 
 		}; 
 
-		memset(&root,0,sizeof(root));
+		memcpy((void *)buffer, (const void *) &superblock, sizeof(super_block));
+		write_blocks(0, 1, buffer); //The superblock is the first block on the disk
 
 		inode rootinode={
-			.mode=777, 
+			.mode=0777, 
 			.link_cnt=1,
 			.uid=0,
 			.gid=0,
@@ -33,22 +40,18 @@ int mksfs(int fresh){
 			.pointers={26,0,0,0,0,0,0,0,0,0,0,0,0}
 		};
 
-		inodetable.inodes[superblock.root_directory] = rootinode;
+		memset(inodes, 0, sizeof(inodes)); //Set inode table to 0, sizeof(inodes) gives the size of the array in bytes
 
-		/*int i;
+		//printf("Size of inode array entry %d\n", sizeof(inodes[0]));
 
-		for(i = 0; i < NUM_BLOCKS; i++) 
-		{
-			freebl.list[i] = 1; //In the beginning every block is free
-		}*/
+		inodes[superblock.root_directory] = rootinode; //write the rootinode into the table
+		memcpy((void *)inodetable_buffer, (const void *) &inodes, sizeof(inodes));		
+		write_blocks(1, 25, inodetable_buffer);
 
-		write_blocks(0, 1, (void *)&superblock); //The superblock is the first block on the disk
-		write_blocks(1, 25, (void *)&inodetable);
-		write_blocks(26, 5, (void *)&root); //Root directory cannot grow larger than max file size, which is 20000 blocks.
 
-		printf("%d \n", inodetable.inodes[superblock.root_directory].mode);
-
-	//	write_blocks(NUM_BLOCKS-1, 1, (void *)&freebl); 
+		memset(root_dir,0,sizeof(root_dir));
+		memcpy((void *)directory_buffer, (const void *) &root_dir, sizeof(root_dir));
+		write_blocks(26, 5, directory_buffer); 
 
 
 	} else {
@@ -59,9 +62,18 @@ int mksfs(int fresh){
 
 		printf("%x \n", superblock.magic_number);
 
-		read_blocks(1, 25, (void *)&inodetable );
+		read_blocks(1, 25, inodetable_buffer);
 
-		printf("Root inode Mode is : %d \n", inodetable.inodes[superblock.root_directory].mode);
+		//Load the inodetable_buffer into the inodes[] array
+		int i;
+		for(i=0;i<NUM_INODES;i++){
+
+			memcpy((void *)&(inodes[i]),(const void *)(inodetable_buffer+i*(sizeof(inodes[i]))), sizeof(inodes[i])); 
+			printf("INODE %d has pointer 1: %d\n", i, inodes[i].pointers[0]);
+
+		}
+
+		printf("Root inode Mode is : %d \n", inodes[superblock.root_directory].mode);
 
 	}
 

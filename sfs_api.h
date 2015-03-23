@@ -5,8 +5,17 @@
 #define NUM_INODE_POINTERS 13
 #define MAXFILES 10
 #define MAXFILESIZE 10
+#define NUM_INODES 100
 
 //On disk data structures of the file system
+
+typedef struct{
+	int magic_number;
+	int blocksize; //Bytes in block 
+	int file_system_size; //Number of blocks
+	int inode_table_length; //Number of blocks
+	int root_directory; //The inode that is the root directory (a number)
+} super_block;
 
 typedef struct{
 	int mode; 
@@ -17,37 +26,21 @@ typedef struct{
 	int pointers[NUM_INODE_POINTERS];
 } inode;
 
-typedef struct{
-	inode inodes[MAXFILES+1]; //Set how many files you can have, 1 needs to be the inode that points to the root directory
-} inode_table;
+inode inodes[NUM_INODES];
 
-typedef struct
-{
+typedef struct{
 	int list[NUM_BLOCKS]; //Keep track of freespace in the SFS
 } freeblocklist;
 
-typedef struct 
-{
-	int magic_number;
-	int blocksize; //Bytes in block 
-	int file_system_size; //Number of blocks
-	int inode_table_length; //Number of blocks
-	int root_directory; //The inode that is the root directory (a number)
-} super_block;
-
-typedef struct 
-{
+typedef struct{
 	int inode_number;
 	char file_name[MAXFILENAME+MAXFILEEXTENSION];
 } directory_entry;
 
-typedef struct 
-{
-	directory_entry table[MAXFILES];
-} root_dir;
 
-typedef struct
-{
+directory_entry root_dir[MAXFILES];
+
+typedef struct{
     int opened;
     int wr_ptr;
     int rd_ptr;

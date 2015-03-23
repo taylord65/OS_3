@@ -3,6 +3,6 @@
 
 int main(void){
 	printf("Disk has been created\n");
-	mksfs(1);
+	mksfs(0);
 	return 0;
 }
