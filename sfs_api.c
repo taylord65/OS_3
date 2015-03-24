@@ -40,10 +40,20 @@ int mksfs(int fresh){
 			.pointers={16,17,18,19,20,0,0,0,0,0,0,0,0}
 		};
 
+/*		inode testinode={
+			.mode=0777, 
+			.link_cnt=1,
+			.uid=0,
+			.gid=0,
+			.size=0,
+			.pointers={16,17,18,19,20,0,0,0,0,0,0,0,0}
+		};
+*/
 
 		memset(inodes, 0, sizeof(inodes)); //Set inode table to 0, sizeof(inodes) gives the size of the array in bytes
 
 		inodes[superblock.root_directory] = rootinode; //write the rootinode into the table
+//		inodes[45] = testinode;
 
 		memcpy((void *)inodetable_buffer, (const void *) &inodes, sizeof(inodes));		
 		write_blocks(1, 15, inodetable_buffer);
@@ -84,6 +94,8 @@ int mksfs(int fresh){
 		for(i=0;i<NUM_INODES;i++){
 
 			memcpy((void *)&(inodes[i]),(const void *)(inodetable_buffer+i*( sizeof(inode)/4)), sizeof(inode)); 
+		//	printf("INODE %d has pointer 1: %d\n", i, inodes[i].pointers[0]);
+		
 
 		}
 
@@ -124,6 +136,8 @@ int mksfs(int fresh){
 
 
 int sfs_fopen(char *name){
+
+	//printf("%s \n", name);
 
 	int i;
 	for(i=0;i<MAXFILES;i++){
@@ -181,6 +195,7 @@ int sfs_fopen(char *name){
 		}
 	}
 
+
 	directory_entry new_entry;
 	strcpy(new_entry.file_name, name);
 
@@ -208,19 +223,19 @@ int sfs_fopen(char *name){
 	new_entry.inode_number = new_inode_index;
 	root_dir[dir_index] = new_entry;
 
-	//A new directory entry has now been created along with its inode, write the inodes[] back to the disk
+	//A new directory entry has now been created along with its inode, write the inodes[] back to the disk. Overwrite everything
 
 	int inodes_buffer[15 * BLOCK_SIZE];	
 	memset(inodes_buffer,0, sizeof(inodes_buffer));		
 	memcpy((void *)inodes_buffer, (const void *) &inodes, sizeof(inodes));		
 	write_blocks(1, 15, inodes_buffer);
 
-	//Write the root_dir[] back to the disk
+	//Write the root_dir[] back to the disk. Overwrite everything
 
 	int dir_buffer[5 * BLOCK_SIZE];
 	memset(dir_buffer,0,sizeof(dir_buffer));
 	memcpy((void *)dir_buffer, (const void *) &root_dir, sizeof(root_dir));
-	write_blocks(16, 5, dir_buffer);		
+	write_blocks(16, 5, dir_buffer);	
 
 
 	return dir_index; //Return the new files index in the directory
@@ -229,17 +244,46 @@ int sfs_fopen(char *name){
 
 int sfs_fclose(int fileID){
 
+	fd_table[fileID].opened = 0;
+
 } 
 
 int sfs_fwrite(int fileID, const char *buf, int length){
+
 
 }
 
 int sfs_fread(int fileID, char *buf, int length){
 
+	int num_blocks_to_read = length/BLOCK_SIZE;
+
+	int inode_index = root_dir[fileID].inode_number;
+	inode selected_inode = inodes[inode_index];
+
+	char data_buffer[(NUM_INODE_POINTERS-1)*BLOCK_SIZE]; //this will hold all the data for the selected file
+	memset(data_buffer,0,sizeof(data_buffer));
+
+	int i;
+
+	for(i=0;i<num_blocks_to_read;i++){
+
+		if(selected_inode.pointers[i]==0){
+			//Inode has no data
+			return -1;
+		}
+
+		read_blocks(selected_inode.pointers[i],1,data_buffer+i*BLOCK_SIZE);
+	}
+
+	memcpy(buf, data_buffer, length); //copy the data into buf
+
 }
 
 int sfs_fseek(int fileID, int offset){
+
+	file_descriptor x;
+	x = fd_table[fileID];
+	x.rw_ptr = offset; 
 
 }
 
