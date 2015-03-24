@@ -10,7 +10,7 @@ int mksfs(int fresh){
 	int buffer[BLOCK_SIZE];
 	memset(buffer,0,BLOCK_SIZE);
 
-	int inodetable_buffer[25 * BLOCK_SIZE];
+	int inodetable_buffer[15 * BLOCK_SIZE];
 	memset(inodetable_buffer,0, sizeof(inodetable_buffer));	
 
 	char directory_buffer[5 * BLOCK_SIZE];
@@ -37,43 +37,56 @@ int mksfs(int fresh){
 			.uid=0,
 			.gid=0,
 			.size=0,
-			.pointers={26,0,0,0,0,0,0,0,0,0,0,0,0}
+			.pointers={16,0,0,0,0,0,0,0,0,0,0,0,0}
 		};
+
 
 		memset(inodes, 0, sizeof(inodes)); //Set inode table to 0, sizeof(inodes) gives the size of the array in bytes
 
-		//printf("Size of inode array entry %d\n", sizeof(inodes[0]));
-
 		inodes[superblock.root_directory] = rootinode; //write the rootinode into the table
-		memcpy((void *)inodetable_buffer, (const void *) &inodes, sizeof(inodes));		
-		write_blocks(1, 25, inodetable_buffer);
 
+		memcpy((void *)inodetable_buffer, (const void *) &inodes, sizeof(inodes));		
+		write_blocks(1, 15, inodetable_buffer);
 
 		memset(root_dir,0,sizeof(root_dir));
 		memcpy((void *)directory_buffer, (const void *) &root_dir, sizeof(root_dir));
-		write_blocks(26, 5, directory_buffer); 
+		write_blocks(16, 5, directory_buffer);		
+
+		memset(free_bitmap, 0, sizeof(free_bitmap));
+		free_bitmap[BLOCK_SIZE-1]=1; //The free bitmap occupies the last block
+		free_bitmap[0]=255; //First 8 bits set to 1 (superblock occupied, blocks 1-15 occupied with inodes)
+		free_bitmap[1]=255; //rest of inodes
+		free_bitmap[2]=248;//The root directory takes blocks 16-21
+		write_blocks(NUM_BLOCKS-1,1,free_bitmap);		 
+
+		memset(fd_table,0, sizeof(fd_table)); //file descriptor table is saved in memory not on disk
 
 
 	} else {
 
-		init_disk("mysfs", BLOCK_SIZE, NUM_BLOCKS); 
+		init_disk("Dotsikas_Taylor_sfs", BLOCK_SIZE, NUM_BLOCKS); 
 
 		read_blocks(0, 1, (void *)&superblock );
 
-		printf("%x \n", superblock.magic_number);
-
-		read_blocks(1, 25, inodetable_buffer);
+		read_blocks(1, 15, inodetable_buffer);
 
 		//Load the inodetable_buffer into the inodes[] array
 		int i;
+
 		for(i=0;i<NUM_INODES;i++){
 
-			memcpy((void *)&(inodes[i]),(const void *)(inodetable_buffer+i*(sizeof(inodes[i]))), sizeof(inodes[i])); 
+			memcpy((void *)&(inodes[i]),(const void *)(inodetable_buffer+i*( sizeof(inode)/4)), sizeof(inode)); 
 			printf("INODE %d has pointer 1: %d\n", i, inodes[i].pointers[0]);
 
 		}
 
-		printf("Root inode Mode is : %d \n", inodes[superblock.root_directory].mode);
+		memset(free_bitmap, 0, sizeof(free_bitmap));
+		read_blocks(NUM_BLOCKS-1,1,free_bitmap);
+
+		//printf("Root inode Mode is : %d \n", inodes[superblock.root_directory].mode);
+
+		inode rootinode = inodes[superblock.root_directory];
+
 
 	}
 

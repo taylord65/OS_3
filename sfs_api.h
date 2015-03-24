@@ -1,6 +1,6 @@
 #define MAXFILENAME 16
 #define MAXFILEEXTENSION 3
-#define NUM_BLOCKS 496
+#define NUM_BLOCKS 4096
 #define BLOCK_SIZE 512 
 #define NUM_INODE_POINTERS 13
 #define MAXFILES 10
@@ -28,9 +28,7 @@ typedef struct{
 
 inode inodes[NUM_INODES];
 
-typedef struct{
-	int list[NUM_BLOCKS]; //Keep track of freespace in the SFS
-} freeblocklist;
+unsigned char free_bitmap[BLOCK_SIZE];
 
 typedef struct{
 	int inode_number;
@@ -46,7 +44,7 @@ typedef struct{
     int rd_ptr;
 } file_descriptor;
 
-
+file_descriptor fd_table[MAXFILES];
 
 int mksfs(int fresh);
 int sfs_fopen(char *name);
