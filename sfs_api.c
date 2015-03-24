@@ -7,8 +7,8 @@ super_block superblock;
 
 int mksfs(int fresh){
 
-	int buffer[BLOCK_SIZE];
-	memset(buffer,0,BLOCK_SIZE);
+	int superblock_buffer[BLOCK_SIZE];
+	memset(superblock_buffer,0,BLOCK_SIZE);
 
 	int inodetable_buffer[15 * BLOCK_SIZE];
 	memset(inodetable_buffer,0, sizeof(inodetable_buffer));	
@@ -28,8 +28,8 @@ int mksfs(int fresh){
 			.root_directory=0 
 		}; 
 
-		memcpy((void *)buffer, (const void *) &superblock, sizeof(super_block));
-		write_blocks(0, 1, buffer); //The superblock is the first block on the disk
+		memcpy((void *)superblock_buffer, (const void *) &superblock, sizeof(super_block));
+		write_blocks(0, 1, superblock_buffer); //The superblock is the first block on the disk
 
 		inode rootinode={
 			.mode=0777, 
@@ -37,7 +37,7 @@ int mksfs(int fresh){
 			.uid=0,
 			.gid=0,
 			.size=0,
-			.pointers={16,0,0,0,0,0,0,0,0,0,0,0,0}
+			.pointers={16,17,18,19,20,0,0,0,0,0,0,0,0}
 		};
 
 
@@ -49,6 +49,14 @@ int mksfs(int fresh){
 		write_blocks(1, 15, inodetable_buffer);
 
 		memset(root_dir,0,sizeof(root_dir));
+
+/*		directory_entry dirtest={
+			.inode_number=10,
+			.file_name="thisistest"
+		};
+
+		root_dir[5] = dirtest;*/
+
 		memcpy((void *)directory_buffer, (const void *) &root_dir, sizeof(root_dir));
 		write_blocks(16, 5, directory_buffer);		
 
@@ -70,22 +78,45 @@ int mksfs(int fresh){
 
 		read_blocks(1, 15, inodetable_buffer);
 
-		//Load the inodetable_buffer into the inodes[] array
+		//Load the inode entries from disk into the inodes[] 
 		int i;
 
 		for(i=0;i<NUM_INODES;i++){
 
 			memcpy((void *)&(inodes[i]),(const void *)(inodetable_buffer+i*( sizeof(inode)/4)), sizeof(inode)); 
-			printf("INODE %d has pointer 1: %d\n", i, inodes[i].pointers[0]);
 
 		}
 
-		memset(free_bitmap, 0, sizeof(free_bitmap));
-		read_blocks(NUM_BLOCKS-1,1,free_bitmap);
+		memset(free_bitmap, 0, sizeof(free_bitmap)); //Clear free_bitmap in memory 
+		read_blocks(NUM_BLOCKS-1,1,free_bitmap); //Read from disk back into free bitmap
 
-		//printf("Root inode Mode is : %d \n", inodes[superblock.root_directory].mode);
+		memset(fd_table,0, sizeof(fd_table)); //file descriptor table is saved in memory not on disk		
 
 		inode rootinode = inodes[superblock.root_directory];
+
+		int j;
+		int block_num;
+		
+		//Load all of the directory entries from disk into root_dir[]
+		for(j=0;j<NUM_INODE_POINTERS;j++){
+
+			if(rootinode.pointers[j] != 0){
+
+				read_blocks(rootinode.pointers[j],1,directory_buffer);
+				int k;
+				//Each block can contain 21, 24 byte directory entries
+				for (k=0;k<21;k++){
+
+				memcpy((void *)&(root_dir[k + block_num*21]), (const void *)(directory_buffer+k*( sizeof(directory_entry) )), sizeof(directory_entry)); 
+				printf("Directory entry %d file name: %s\n", (k + block_num*21), root_dir[k + block_num*21].file_name);
+
+				
+				}
+				block_num++;
+				memset(directory_buffer,0, sizeof(directory_buffer));
+			}
+
+		}	
 
 
 	}

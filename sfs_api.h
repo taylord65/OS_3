@@ -3,7 +3,7 @@
 #define NUM_BLOCKS 4096
 #define BLOCK_SIZE 512 
 #define NUM_INODE_POINTERS 13
-#define MAXFILES 10
+#define MAXFILES 99
 #define MAXFILESIZE 10
 #define NUM_INODES 100
 
