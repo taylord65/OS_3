@@ -5,7 +5,7 @@ LDFLAGS = `pkg-config fuse --cflags --libs`
 SOURCES= disk_emu.c sfs_api.c fuse_wrappers.c
 
 OBJECTS=$(SOURCES:.c=.o)
-EXECUTABLE=sfs
+EXECUTABLE=Dotsikas_Taylor_sfs
 
 all: $(SOURCES) $(EXECUTABLE)
 

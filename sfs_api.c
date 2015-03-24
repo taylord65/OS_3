@@ -108,9 +108,8 @@ int mksfs(int fresh){
 				for (k=0;k<21;k++){
 
 				memcpy((void *)&(root_dir[k + block_num*21]), (const void *)(directory_buffer+k*( sizeof(directory_entry) )), sizeof(directory_entry)); 
-				printf("Directory entry %d file name: %s\n", (k + block_num*21), root_dir[k + block_num*21].file_name);
+				//printf("Directory entry %d file name: %s\n", (k + block_num*21), root_dir[k + block_num*21].file_name);
 
-				
 				}
 				block_num++;
 				memset(directory_buffer,0, sizeof(directory_buffer));
@@ -125,34 +124,107 @@ int mksfs(int fresh){
 
 
 int sfs_fopen(char *name){
-//opens a file and returns the index on the file descriptor table
-/*
-	int i;
-	int fileID;
 
-	//Look through the root directory to find the fileID that coresponds to the name
-	for(i=0;i < MAXFILES;i++)
-	{
-		if(strcmp(name,root.table[i].file_name) == 0){
-			fileID = i;
+	int i;
+	for(i=0;i<MAXFILES;i++){
+
+		if(strncmp(root_dir[i].file_name, name, MAXFILENAME) == 0){
+			//The file exists in the directory
+
+			if(fd_table[i].opened=1){
+				return -1; //The file is already open
+			}
+
+			fd_table[i].opened = 1; //Open the file
+
+			inode file_inode = inodes[root_dir[i].inode_number]; //Load an inode into memory that contains the pointers to the data for the file
+
+			int j;
+			for(j=0;j<NUM_INODE_POINTERS;j++){
+				if(file_inode.pointers[j]==0){
+					//File pointer needs to be set to end of file, need to find the last block
+
+					char block_buffer[BLOCK_SIZE];
+					read_blocks(file_inode.pointers[j-1], 1, block_buffer);
+					//The block buffer now holds the block that holds the ending data of the file
+
+					int f_pointer = BLOCK_SIZE - 1; 
+
+					while(block_buffer[f_pointer] == 0){
+						f_pointer--; //Decrement the pointer until it points to the last byte
+					}
+
+					fd_table[i].rw_ptr = (f_pointer + 1) + (file_inode.pointers[j-2])*BLOCK_SIZE; 
+					//The byte number of the end of the file beginning from the start of the disk is now saved in the pointer
+
+
+					return i; //Return the index of the file
+				}
+			}
+			//All pointers are non zero, the file's inode uses an indirect pointer
+
+			//-------TODO--------
+
 		}
 	}
-	
-	//Check if the file is already open 
-	if(root.table[fileID ].fd.opened == 1)
-	{
-		printf("Error file '%s' already open!\n", name);
-		return -1;
-	}
-	else
-	{
-		//It will be opened now
-		root.table[fileID ].fd.opened = 1;
-		return 0;
+
+	//The File does not exist and needs to be created
+
+	int k;
+	int dir_index;
+
+	for(k=0;k<MAXFILES;k++){
+		if(root_dir[k].inode_number==0){
+			//This is an unused directory entry
+			dir_index = k;
+			break;
+		}
 	}
 
-	return fileID;
-	*/
+	directory_entry new_entry;
+	strcpy(new_entry.file_name, name);
+
+
+	int l;
+	int new_inode_index; //the index for the inode that will contain data for the new file
+
+	for(l=1;l<NUM_INODES;l++){
+		if(inodes[l].link_cnt==0){
+			new_inode_index=l;
+			break;
+		}
+	}
+
+	inode new_inode={
+		.mode=0777, 
+		.link_cnt=1,
+		.uid=0,
+		.gid=0,
+		.size=0,
+		.pointers={0,0,0,0,0,0,0,0,0,0,0,0,0}
+	};
+
+	inodes[new_inode_index] = new_inode;
+	new_entry.inode_number = new_inode_index;
+	root_dir[dir_index] = new_entry;
+
+	//A new directory entry has now been created along with its inode, write the inodes[] back to the disk
+
+	int inodes_buffer[15 * BLOCK_SIZE];	
+	memset(inodes_buffer,0, sizeof(inodes_buffer));		
+	memcpy((void *)inodes_buffer, (const void *) &inodes, sizeof(inodes));		
+	write_blocks(1, 15, inodes_buffer);
+
+	//Write the root_dir[] back to the disk
+
+	int dir_buffer[5 * BLOCK_SIZE];
+	memset(dir_buffer,0,sizeof(dir_buffer));
+	memcpy((void *)dir_buffer, (const void *) &root_dir, sizeof(root_dir));
+	write_blocks(16, 5, dir_buffer);		
+
+
+	return dir_index; //Return the new files index in the directory
+
 } 
 
 int sfs_fclose(int fileID){

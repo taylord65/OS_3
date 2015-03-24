@@ -40,8 +40,7 @@ directory_entry root_dir[MAXFILES];
 
 typedef struct{
     int opened;
-    int wr_ptr;
-    int rd_ptr;
+    int rw_ptr;
 } file_descriptor;
 
 file_descriptor fd_table[MAXFILES];
