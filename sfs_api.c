@@ -1,11 +1,16 @@
 #include <stdio.h>
 #include <string.h>
+#include <libgen.h>
 #include "disk_emu.h"
 #include "sfs_api.h"
 
 super_block superblock;
 
+int current_dir_position;
+
+
 int mksfs(int fresh){
+
 
 	int superblock_buffer[BLOCK_SIZE];
 	memset(superblock_buffer,0,BLOCK_SIZE);
@@ -78,6 +83,8 @@ int mksfs(int fresh){
 		write_blocks(NUM_BLOCKS-1,1,free_bitmap);		 
 
 		memset(fd_table,0, sizeof(fd_table)); //file descriptor table is saved in memory not on disk
+		
+		current_dir_position = 0;
 
 
 	} else {
@@ -129,7 +136,7 @@ int mksfs(int fresh){
 
 		}	
 
-
+		current_dir_position = 0;
 	}
 
 }
@@ -244,11 +251,157 @@ int sfs_fopen(char *name){
 
 int sfs_fclose(int fileID){
 
-	fd_table[fileID].opened = 0;
+	//If it is open close it
+
+	if(fd_table[fileID].opened == 1){
+
+		fd_table[fileID].opened = 0;
+		return 0;
+	
+	}
 
 } 
 
 int sfs_fwrite(int fileID, const char *buf, int length){
+	//at end write inodes back to disk, write data to disk
+	//can only write inside the file or at the end
+
+	char data_buffer[BLOCK_SIZE];
+
+
+	if(length < 0){
+		return -1;
+		//error in length size
+	}
+
+	inode selected_inode = inodes[root_dir[fileID].inode_number];
+	int current_position = fd_table[fileID].rw_ptr;
+
+
+	if(selected_inode.pointers[0] == 0){
+	//This is an empty file
+	//Find the amount of blocks needed, find some freespace in the free block list
+
+	}
+	else {
+	//Not an empty file
+
+	int start_block = 0;
+
+	int j;
+	for(j=0;j<NUM_INODE_POINTERS-1;j++){
+
+		//does the current_position lie inside one of the inode's data blocks
+		if( current_position >= selected_inode.pointers[j-1]*BLOCK_SIZE && current_position <= selected_inode.pointers[j]*BLOCK_SIZE){
+			start_block = selected_inode.pointers[j];
+			break;
+		}
+
+	}	
+
+	if(start_block == 0){
+		//The pointer does not lie inside the file
+		return -1;
+	}
+
+	int rw_offset_from_start_block = current_position - (start_block-1)*BLOCK_SIZE;
+
+	if((rw_offset_from_start_block + length) < BLOCK_SIZE){
+		//Only need to write one block, the start_block, it must be loaded into a buffer, the buf needs to be added at the offset
+
+		memset(data_buffer,0,sizeof(data_buffer));
+		read_blocks(start_block,1,data_buffer);
+
+		memcpy((void *)&(data_buffer[rw_offset_from_start_block]),(const void *)buf, length); 
+		write_blocks(start_block,1,data_buffer);
+
+
+	}
+	else{
+		//Need to write the current + more free blocks
+		//Load current block into buffer and do the first part of the length into it
+
+		memset(data_buffer,0,sizeof(data_buffer));
+		read_blocks(start_block,1,data_buffer);
+
+		memcpy((void *)&(data_buffer[rw_offset_from_start_block]),(const void *)buf, (BLOCK_SIZE - rw_offset_from_start_block) ); 
+		write_blocks(start_block,1,data_buffer);
+
+		int remaining_bytes = length - (BLOCK_SIZE - rw_offset_from_start_block);
+
+		//How many blocks does it take to fit remaining_bytes
+
+		int blocks_to_write = remaining_bytes/BLOCK_SIZE;
+
+		if(blocks_to_write == 0){
+			if(remaining_bytes%BLOCK_SIZE > 0){
+				blocks_to_write = 1;
+				//only need to write some of a block, but will use a full one
+				//overwrite the next block in the inode pointers or find a free one if there is no next one
+
+				if(selected_inode.pointers[start_block+1] != 0){
+					//The next block already exists
+
+					memset(data_buffer,0,sizeof(data_buffer));
+					read_blocks(start_block+1,1,data_buffer);
+
+					memcpy((void *)&(data_buffer[]),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)), remaining_bytes); 
+					write_blocks(start_block+1,1,data_buffer);					
+				}
+				else{
+
+					//need to find 1 new block since there is not another datablock pointed to in the inode
+
+					memset(data_buffer,0,sizeof(data_buffer));
+					read_blocks(	,1,data_buffer);
+
+					memcpy((void *)&(data_buffer[]),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)), remaining_bytes); 
+					write_blocks(	,1,data_buffer);	
+
+				}
+
+			}
+		} 
+		else {
+
+			if(remaining_bytes%BLOCK_SIZE > 0){
+				//need to write some of another block so use a full one
+				blocks_to_write++;
+			}
+			//The amount of blocks to write is blocks_to_write
+			//find free blocks_to_write amount of free space
+
+
+		}		
+
+
+		//next block start buf + BLOCK_SIZE - rw_offset_from_start_block
+
+
+
+	}
+	
+	
+
+	} //end not an empty file
+
+
+/*	int blocks_to_write = length/BLOCK_SIZE;
+
+
+
+	if(blocks_to_write == 0){
+		if(length%BLOCK_SIZE > 0){
+			//only need to write some of a block, but will use a full one
+			blocks_to_write = 1;
+		}
+	} 
+	else {
+		if(length%BLOCK_SIZE > 0){
+			//need to write some of another block so use a full one
+			blocks_to_write++;
+		}
+	}*/
 
 
 }
@@ -281,9 +434,8 @@ int sfs_fread(int fileID, char *buf, int length){
 
 int sfs_fseek(int fileID, int offset){
 
-	file_descriptor x;
-	x = fd_table[fileID];
-	x.rw_ptr = offset; 
+	//Set the selected file's pointer to the offset value
+	fd_table[fileID].rw_ptr = offset;
 
 }
 
@@ -293,8 +445,92 @@ int sfs_remove(char *file){
 
 int sfs_get_next_filename(char* filename){
 
+	//Need to create a new directory table that contains all the non zero entries
+
+	int i, j, k, num_non_zero_entries;
+
+	for(i=0;i<MAXFILES;i++){
+		if(root_dir[i].inode_number!=0){
+			num_non_zero_entries++;
+		}
+	}
+
+	directory_entry non_zero_entries[num_non_zero_entries];
+
+	k = 0;
+	for(j=0;j<MAXFILES;j++){
+		if(root_dir[j].inode_number!=0){
+			non_zero_entries[k] = root_dir[j];
+			k++;
+		}
+	}
+
+	if(current_dir_position==(num_non_zero_entries-1)){
+		//current position is last file
+		current_dir_position=0;
+		return 0;
+	}
+	else {
+		//Get the next file and put it in filename, return non zero
+		filename = non_zero_entries[current_dir_position++].file_name;
+		return 1;
+	}
+
 }
 
 int sfs_GetFileSize(const char* path){
+	//Get the base of the path (file name) look in the root_dir to find its corresponding inode and use the size property
+	//not handling indirect inode
+	char *base=basename((char *)path);
+	int index, i,j,k;
+
+	for(i=0;i<MAXFILES;i++){
+		if(strncmp(root_dir[i].file_name, base, MAXFILENAME)==0){
+			index = root_dir[i].inode_number;
+		}
+	}
+	int filesize;
+
+	inode selected_inode = inodes[index];
+
+	int num_data_blocks; //how many blocks it uses
+	num_data_blocks = 0;
+
+	for(j=0;j<NUM_INODE_POINTERS-1;j++){
+		if(selected_inode.pointers[j]!=0){
+			num_data_blocks++;
+		}
+	}
+
+	int the_pointers[num_data_blocks];
+
+	for(k=0;k<num_data_blocks;k++){
+		if(selected_inode.pointers[k]!=0){
+			the_pointers[k] = selected_inode.pointers[k];
+		}
+
+	}
+
+	int last_block = the_pointers[num_data_blocks-1];
+	int full_blocks = num_data_blocks - 1;
+
+	char buffer[BLOCK_SIZE];
+
+	read_blocks(last_block,1,buffer);
+
+	int buf_pointer = BLOCK_SIZE -1;
+
+	while(buffer[buf_pointer]==0){
+		buf_pointer--; //Decrement the buf pointer until it points to the end of the data
+	}
+
+	buf_pointer++; //Now the buf_pointer contains the amount of bytes in the last block
+
+	filesize = buf_pointer + full_blocks*BLOCK_SIZE;
+
+	inodes[index].size = filesize; //Update the inodes size property
+
+	return filesize;
+
 
 }
