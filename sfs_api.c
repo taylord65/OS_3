@@ -167,9 +167,6 @@ int sfs_fopen(char *name){
 					return i; //Return the index of the file
 				}
 			}
-			//All pointers are non zero, the file's inode uses an indirect pointer
-
-			//-------TODO--------
 
 		}
 	}
@@ -291,7 +288,7 @@ int find_free_block(void){
 
 int sfs_fwrite(int fileID, const char *buf, int length){
 	//at end write inodes back to disk, write data to disk
-	//can only write inside the file or at the end
+	//can only write inside the file, at the end of the file, or write to an empty file
 
 	char data_buffer[BLOCK_SIZE];
 
@@ -307,15 +304,68 @@ int sfs_fwrite(int fileID, const char *buf, int length){
 
 	if(selected_inode.pointers[0] == 0){
 	//This is an empty file
-	//Find the amount of blocks needed, find some freespace in the free block list
 	//write to a block starting at the beginning, cannot assume the data is continuous across sequential blocks
 
 		memset(data_buffer,0,sizeof(data_buffer));
 
+		int blocks_to_write = length/BLOCK_SIZE;
+		int free_block;
 
+		if(blocks_to_write == 0){
+			//can fit everything in one block
+			free_block = find_free_block();
+			memcpy((void *)&(data_buffer),(const void *)(buf),length);
+			write_blocks(free_block,1,data_buffer); 
+			inodes[root_dir[fileID].inode_number].pointers[0] = free_block;
 
+		}
+		else{
+			//need to write multiple blocks
 
+			if(length%BLOCK_SIZE > 0){
+				//need to write some of another block so use a full one
+				blocks_to_write++;
+			}
 
+			int blocks_array_to_write[blocks_to_write];
+			int new_free_block, i,j;
+			int length_to_write, remaining_bytes;
+
+			remaining_bytes = length;
+
+			for(i=0;i<blocks_to_write;i++){
+
+				new_free_block = find_free_block();
+				blocks_array_to_write[i] = new_free_block;
+				
+				//Update the inode
+				inodes[root_dir[fileID].inode_number].pointers[i] = blocks_array_to_write[i];
+
+			}
+
+				for(j=0;j<blocks_to_write;j++){
+
+				length_to_write = remaining_bytes/BLOCK_SIZE;
+
+				if(length_to_write != 0){
+					//Write a full block
+					memcpy((void *)&(data_buffer),(const void *)(buf+(sizeof(data_buffer))*j),sizeof(data_buffer)); 
+					write_blocks(blocks_array_to_write[j],1,data_buffer);
+
+					remaining_bytes = remaining_bytes - BLOCK_SIZE;
+
+				}
+				else {
+					//Write the last one
+					memcpy((void *)&(data_buffer),(const void *)(buf+(sizeof(data_buffer))*j),remaining_bytes); 
+					write_blocks(blocks_array_to_write[j],1,data_buffer);
+				}
+
+				memset(data_buffer,0,sizeof(data_buffer));
+
+			}
+
+		}//end write multiple new blocks
 
 
 
