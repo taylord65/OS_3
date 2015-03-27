@@ -45,15 +45,6 @@ int mksfs(int fresh){
 			.pointers={16,17,18,19,20,0,0,0,0,0,0,0,0}
 		};
 
-/*		inode testinode={
-			.mode=0777, 
-			.link_cnt=1,
-			.uid=0,
-			.gid=0,
-			.size=0,
-			.pointers={16,17,18,19,20,0,0,0,0,0,0,0,0}
-		};
-*/
 
 		memset(inodes, 0, sizeof(inodes)); //Set inode table to 0, sizeof(inodes) gives the size of the array in bytes
 
@@ -65,12 +56,6 @@ int mksfs(int fresh){
 
 		memset(root_dir,0,sizeof(root_dir));
 
-/*		directory_entry dirtest={
-			.inode_number=10,
-			.file_name="thisistest"
-		};
-
-		root_dir[5] = dirtest;*/
 
 		memcpy((void *)directory_buffer, (const void *) &root_dir, sizeof(root_dir));
 		write_blocks(16, 5, directory_buffer);		
@@ -262,6 +247,48 @@ int sfs_fclose(int fileID){
 
 } 
 
+
+int find_free_block(void){
+//If it is free set it to occupied, then return the block number
+	int i;
+	for(i=0;i<BLOCK_SIZE;i++){
+		if((free_bitmap[i]&128)==0){
+			free_bitmap[i]&128 == 1;
+			return i*8+1;
+		}
+		else if((free_bitmap[i]&64)==0){
+			free_bitmap[i]&64 == 1;			
+			return i*8+2;
+		}
+		else if((free_bitmap[i]&32)==0){
+			free_bitmap[i]&32 == 1;			
+			return i*8+3;
+		}
+		else if((free_bitmap[i]&16)==0){
+			free_bitmap[i]&16 == 1;			
+			return i*8+4;
+		}
+		else if((free_bitmap[i]&8)==0){
+			free_bitmap[i]&8 == 1;			
+			return i*8+5;
+		}
+		else if((free_bitmap[i]&4)==0){
+			free_bitmap[i]&4 == 1;			
+			return i*8+6;
+		}
+		else if((free_bitmap[i]&2)==0){
+			free_bitmap[i]&2 == 1;			
+			return i*8+7;
+		}
+		else if((free_bitmap[i]&1)==0){
+			free_bitmap[i]&1 == 1;						
+			return i*8+8;
+		}
+	}
+	printf("The disk is full\n");
+}
+
+
 int sfs_fwrite(int fileID, const char *buf, int length){
 	//at end write inodes back to disk, write data to disk
 	//can only write inside the file or at the end
@@ -281,12 +308,23 @@ int sfs_fwrite(int fileID, const char *buf, int length){
 	if(selected_inode.pointers[0] == 0){
 	//This is an empty file
 	//Find the amount of blocks needed, find some freespace in the free block list
+	//write to a block starting at the beginning, cannot assume the data is continuous across sequential blocks
+
+		memset(data_buffer,0,sizeof(data_buffer));
+
+
+
+
+
+
+
 
 	}
 	else {
 	//Not an empty file
 
 	int start_block = 0;
+	int start_block_index =0;
 
 	int j;
 	for(j=0;j<NUM_INODE_POINTERS-1;j++){
@@ -294,6 +332,7 @@ int sfs_fwrite(int fileID, const char *buf, int length){
 		//does the current_position lie inside one of the inode's data blocks
 		if( current_position >= selected_inode.pointers[j-1]*BLOCK_SIZE && current_position <= selected_inode.pointers[j]*BLOCK_SIZE){
 			start_block = selected_inode.pointers[j];
+			start_block_index = j;
 			break;
 		}
 
@@ -301,6 +340,7 @@ int sfs_fwrite(int fileID, const char *buf, int length){
 
 	if(start_block == 0){
 		//The pointer does not lie inside the file
+		printf("Pointer does not lie inside the file\n");
 		return -1;
 	}
 
@@ -326,6 +366,7 @@ int sfs_fwrite(int fileID, const char *buf, int length){
 
 		memcpy((void *)&(data_buffer[rw_offset_from_start_block]),(const void *)buf, (BLOCK_SIZE - rw_offset_from_start_block) ); 
 		write_blocks(start_block,1,data_buffer);
+		//Current block is written
 
 		int remaining_bytes = length - (BLOCK_SIZE - rw_offset_from_start_block);
 
@@ -339,69 +380,111 @@ int sfs_fwrite(int fileID, const char *buf, int length){
 				//only need to write some of a block, but will use a full one
 				//overwrite the next block in the inode pointers or find a free one if there is no next one
 
-				if(selected_inode.pointers[start_block+1] != 0){
+				if(selected_inode.pointers[start_block_index+1] != 0){
 					//The next block already exists
 
 					memset(data_buffer,0,sizeof(data_buffer));
 					read_blocks(start_block+1,1,data_buffer);
 
-					memcpy((void *)&(data_buffer[]),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)), remaining_bytes); 
+					memcpy((void *)&(data_buffer),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)), remaining_bytes); 
 					write_blocks(start_block+1,1,data_buffer);					
 				}
 				else{
 
 					//need to find 1 new block since there is not another datablock pointed to in the inode
 
-					memset(data_buffer,0,sizeof(data_buffer));
-					read_blocks(	,1,data_buffer);
+					int freeblock = find_free_block();
 
-					memcpy((void *)&(data_buffer[]),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)), remaining_bytes); 
-					write_blocks(	,1,data_buffer);	
+					memset(data_buffer,0,sizeof(data_buffer));
+					read_blocks(freeblock,1,data_buffer);
+
+					memcpy((void *)&(data_buffer),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)), remaining_bytes); 
+					write_blocks(freeblock,1,data_buffer);	
+
+					//Add datablock to inode
+					inodes[root_dir[fileID].inode_number].pointers[start_block_index+1] = freeblock;
+
+						int inodes_buffer[15 * BLOCK_SIZE];	
+						memset(inodes_buffer,0, sizeof(inodes_buffer));		
+						memcpy((void *)inodes_buffer, (const void *) &inodes, sizeof(inodes));		
+						write_blocks(1, 15, inodes_buffer);
 
 				}
 
 			}
 		} 
 		else {
+			//More than one block needs to be written with remaining_bytes, check if there are inode pointers already that need to be overwritten or find new
 
 			if(remaining_bytes%BLOCK_SIZE > 0){
 				//need to write some of another block so use a full one
 				blocks_to_write++;
 			}
-			//The amount of blocks to write is blocks_to_write
-			//find free blocks_to_write amount of free space
 
+			memset(data_buffer,0,sizeof(data_buffer));
+
+
+			int blocks_array_to_write[blocks_to_write];
+			int new_free_block, i,j;
+			int length_to_write;
+
+			for(i=0;i<blocks_to_write;i++){
+				if(selected_inode.pointers[start_block_index+1+i] != 0){
+					//Check if next pointer is free
+					blocks_array_to_write[i] = selected_inode.pointers[start_block_index+1+i];
+				}
+				else {
+					//If it is not, find a new block
+					new_free_block = find_free_block();
+					blocks_array_to_write[i] = new_free_block;
+				}	
+				//Update the inode
+				inodes[root_dir[fileID].inode_number].pointers[start_block_index+1+i] = blocks_array_to_write[i];
+
+			}
+
+			//Write the remaining_bytes data to all the entries of blocks_array_to_write
+			//read in every block, then write
+
+			for(j=0;j<blocks_to_write;j++){
+
+				read_blocks(blocks_array_to_write[j],1,data_buffer); //Read what is currently in that block
+
+				length_to_write = remaining_bytes/BLOCK_SIZE;
+
+				if(length_to_write != 0){
+					//Write a full block
+					memcpy((void *)&(data_buffer),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)+(j*sizeof(data_buffer))),sizeof(data_buffer)); 
+					write_blocks(blocks_array_to_write[j],1,data_buffer);
+
+					remaining_bytes = remaining_bytes - BLOCK_SIZE;
+
+				}
+				else {
+					//Write the last one
+					memcpy((void *)&(data_buffer),(const void *)(buf+(BLOCK_SIZE - rw_offset_from_start_block)+(j*sizeof(data_buffer))),remaining_bytes); 
+					write_blocks(blocks_array_to_write[j],1,data_buffer);
+				}
+
+				memset(data_buffer,0,sizeof(data_buffer));
+
+			}
 
 		}		
 
-
-		//next block start buf + BLOCK_SIZE - rw_offset_from_start_block
-
-
-
 	}
-	
-	
+
 
 	} //end not an empty file
 
+	//write the inodes back to the disk
+	int inodes_buffer[15 * BLOCK_SIZE];	
+	memset(inodes_buffer,0, sizeof(inodes_buffer));		
+	memcpy((void *)inodes_buffer, (const void *) &inodes, sizeof(inodes));		
+	write_blocks(1, 15, inodes_buffer);
 
-/*	int blocks_to_write = length/BLOCK_SIZE;
-
-
-
-	if(blocks_to_write == 0){
-		if(length%BLOCK_SIZE > 0){
-			//only need to write some of a block, but will use a full one
-			blocks_to_write = 1;
-		}
-	} 
-	else {
-		if(length%BLOCK_SIZE > 0){
-			//need to write some of another block so use a full one
-			blocks_to_write++;
-		}
-	}*/
+	//write freeblock bitmap back to the disk
+	write_blocks(NUM_BLOCKS-1,1,free_bitmap);		 
 
 
 }
