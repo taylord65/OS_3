@@ -390,7 +390,7 @@ int sfs_fwrite(int fileID, const char *buf, int length){
 
 	if(start_block == 0){
 		//The pointer does not lie inside the file
-		printf("Pointer does not lie inside the file\n");
+		printf("Pointer does not lie inside the file. The pointer's offset must be in the data range's of one of the blocks corresponding to the file \n");
 		return -1;
 	}
 
@@ -572,7 +572,103 @@ int sfs_fseek(int fileID, int offset){
 
 }
 
+int make_block_free(int selected_block){
+
+	int bitmap_index = selected_block/8;
+
+	char bit_index = selected_block%8;
+
+	if(bit_index==0){
+		free_bitmap[bitmap_index]&128 == 0; 
+	}	
+
+	else if(bit_index==1){
+		free_bitmap[bitmap_index]&64 == 0; 
+	}
+	else if(bit_index==2){
+		free_bitmap[bitmap_index]&32 == 0; 
+	
+	}
+	else if(bit_index==3){
+		free_bitmap[bitmap_index]&16 == 0; 
+	
+	}
+	else if(bit_index==4){
+		free_bitmap[bitmap_index]&8 == 0; 
+	
+	}
+	else if(bit_index==5){
+		free_bitmap[bitmap_index]&4 == 0; 
+		
+	}
+	else if(bit_index==6){
+		free_bitmap[bitmap_index]&2 == 0; 
+		
+	}
+	else if(bit_index==7){
+		free_bitmap[bitmap_index]&1 == 0; 
+		
+	}
+
+
+}
+
+
 int sfs_remove(char *file){
+	//Remove the corresponding root directory entry, its inode, erase corresponding data blocks, set data blocks to free, flush inode, root dir, and free bitmap to disk.
+	//set values in file descriptor table entry to 0
+
+	char data_buffer[BLOCK_SIZE];
+	memset(data_buffer,0,sizeof(data_buffer));	
+
+	int inode_index, i, j;
+
+	for(i=0;i<MAXFILES;i++){
+		if(strncmp(root_dir[i].file_name, file, MAXFILENAME) == 0){
+
+			fd_table[i].rw_ptr = 0;
+			fd_table[i].opened = 0;
+
+			inode_index = root_dir[i].inode_number;
+			root_dir[i].inode_number = 0;
+			memset(root_dir[i].file_name, 0, MAXFILENAME+MAXFILEEXTENSION);
+
+		}
+	}
+
+	//File aquired
+	//Erase the data blocks
+	for(j=0;j<NUM_INODE_POINTERS;j++){
+		//At each block overwrite with zeroes
+		if(inodes[inode_index].pointers[j] != 0){
+
+		make_block_free(inodes[inode_index].pointers[j]);
+
+		write_blocks(inodes[inode_index].pointers[j],1,data_buffer);
+		inodes[inode_index].pointers[j] = 0;
+		}
+	}
+
+	//wipe the inode's properties
+	inodes[inode_index].link_cnt = 0;
+	inodes[inode_index].size = 0;
+	inodes[inode_index].mode = 0;
+
+
+	//write root directory back to disk
+	char directory_buffer[5 * BLOCK_SIZE];
+	memset(directory_buffer,0, sizeof(directory_buffer));
+	memcpy((void *)directory_buffer, (const void *) &root_dir, sizeof(root_dir));
+	write_blocks(16, 5, directory_buffer);		
+
+	//write the inodes back to the disk
+	int inodes_buffer[15 * BLOCK_SIZE];	
+	memset(inodes_buffer,0, sizeof(inodes_buffer));		
+	memcpy((void *)inodes_buffer, (const void *) &inodes, sizeof(inodes));		
+	write_blocks(1, 15, inodes_buffer);
+
+	//write freeblock bitmap back to the disk
+	write_blocks(NUM_BLOCKS-1,1,free_bitmap);	
 
 }
 
